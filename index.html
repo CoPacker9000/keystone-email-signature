@@ -125,7 +125,7 @@ function telHref(raw) {
 function build() {
   const name  = esc(document.getElementById('f-name').value.trim()  || 'Full Name');
   const title = esc(document.getElementById('f-title').value.trim() || 'Job Title');
-  const email = esc(document.getElementById('f-email').value.trim());
+  const email = esc(document.getElementById('f-email').value.trim().toLowerCase());
   const phone = esc(normalizePhone(document.getElementById('f-phone').value.trim() || COMPANY_PHONE));
 
   const parts = [];
@@ -168,6 +168,12 @@ const phoneEl = document.getElementById('f-phone');
 phoneEl.addEventListener('blur', () => {
   const tidy = normalizePhone(phoneEl.value);
   if (tidy !== phoneEl.value) { phoneEl.value = tidy; render(); }
+});
+
+const emailEl = document.getElementById('f-email');
+emailEl.addEventListener('blur', () => {
+  const tidy = emailEl.value.trim().toLowerCase();
+  if (tidy !== emailEl.value) { emailEl.value = tidy; render(); }
 });
 
 const sigEl = document.getElementById('signature');
