@@ -20,12 +20,18 @@
   input:focus{outline:none;border-color:#0a8272;box-shadow:0 0 0 3px rgba(10,130,114,.14);}
   .field{margin-bottom:0}
   .hintline{font-size:11.5px;color:#8a949c;margin:5px 0 0;}
-  .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 14px;}
-  button{background:#0a8272;color:#fff;border:0;border-radius:5px;padding:11px 20px;
+  .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 14px;}  button{background:#0a8272;color:#fff;border:0;border-radius:5px;padding:11px 20px;
          font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
   button:hover{background:#086b5d;}
   button:focus-visible{outline:2px solid #26333d;outline-offset:2px;}
   #status{font-size:13px;color:#6b7780;}
+  .stat{font-size:13px;color:#6b7780;}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid #d9dfe3;margin:0 0 20px;}
+  .tabs button{background:none;color:#79838b;border-radius:0;padding:10px 16px;font-size:13.5px;
+               font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tabs button:hover{color:#4a5560;}
+  .tabs button[aria-selected="true"]{color:#0a8272;border-bottom-color:#0a8272;}
+  .panelnote{font-size:12.5px;color:#79838b;line-height:1.7;margin:0 0 16px;}
   .stagewrap{background:#fff;border:1px solid #d9dfe3;border-radius:6px;padding:0;overflow-x:auto;}
   .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#8a949c;margin:0 0 9px 2px;}
   .steps{font-size:12.5px;color:#79838b;line-height:1.75;margin:16px 0 0;}
@@ -60,21 +66,36 @@
     </div>
   </div>
 
-  <div class="bar">
-    <button id="copyBtn" type="button">Copy signature</button>
-    <span id="status">Then paste into Outlook &rsaquo; Signatures.</span>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-full"  aria-selected="true"  aria-controls="panel-full">Full signature</button>
+    <button type="button" role="tab" id="tab-reply" aria-selected="false" aria-controls="panel-reply">Reply signature</button>
   </div>
 
-  <p class="lbl">Preview</p>
+  <div id="panel-full" role="tabpanel" aria-labelledby="tab-full">
+    <p class="panelnote">For new messages and first contact. Full logo, contact block and certification marks.</p>
+    <div class="bar">
+      <button id="copyFull" type="button">Copy full signature</button>
+      <span class="stat" id="statusFull">Then paste into Outlook &rsaquo; Signatures.</span>
+    </div>
+    <p class="lbl">Preview</p>
+    <div class="stagewrap"><div id="sigFull"></div></div>
+  </div>
 
-  <div class="stagewrap" id="stagewrap">
-    <div id="signature"></div>
+  <div id="panel-reply" role="tabpanel" aria-labelledby="tab-reply" hidden>
+    <p class="panelnote">For replies and forwards. Text only &mdash; no logo or certification marks, so long threads stay light and don&rsquo;t stack the same images over and over.</p>
+    <div class="bar">
+      <button id="copyReply" type="button">Copy reply signature</button>
+      <span class="stat" id="statusReply">Then paste into Outlook &rsaquo; Signatures.</span>
+    </div>
+    <p class="lbl">Preview</p>
+    <div class="stagewrap"><div id="sigReply"></div></div>
   </div>
 
   <p class="steps">
-    <strong>Outlook (Windows):</strong> File &rsaquo; Options &rsaquo; Mail &rsaquo; Signatures &rsaquo; New, then <code>Ctrl+V</code>.<br>
+    <strong>Outlook (Windows):</strong> File &rsaquo; Options &rsaquo; Mail &rsaquo; Signatures &rsaquo; New, then <code>Ctrl+V</code>.
+    Create two &mdash; set the full one as <em>New messages</em> and the reply one as <em>Replies/forwards</em>.<br>
     <strong>Outlook (web / new Outlook):</strong> Settings &rsaquo; Mail &rsaquo; Compose and reply, then paste into the signature box.<br>
-    If the copy button is blocked by your browser, click into the preview, press <code>Ctrl+A</code> then <code>Ctrl+C</code>.
+    If a copy button is blocked by your browser, click into that preview, press <code>Ctrl+A</code> then <code>Ctrl+C</code>.
   </p>
 
 </div>
@@ -87,7 +108,7 @@ const LOGO   = "<img src=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANwAAAB
 const COMPANY_PHONE = '801.901.7812';
 const COMPANY_NAME  = 'KeyStone Co-Pack Manufacturing';
 const COMPANY_WEB   = 'keystonecopack.com';
-const COMPANY_ADDR  = '1057 W 700 S, Suite 400 &nbsp;&middot;&nbsp; Pleasant Grove, UT 84062';
+const COMPANY_ADDR  = '1057 W 700 S, Suite 400, Pleasant Grove, UT 84062';
 /* ------------------------------------------------------------------- */
 
 const TEAL='#0eb099', TEAL_TXT='#0a8272', BLUE='#156489', MUTED='#6b7780';
@@ -122,7 +143,8 @@ function telHref(raw) {
   return 'tel:+1' + p.core + (p.ext ? ';ext=' + p.ext : '');
 }
 
-function build() {
+/* Read the form once — both versions render from the same values. */
+function fields() {
   const name  = esc(document.getElementById('f-name').value.trim()  || 'Full Name');
   const title = esc(document.getElementById('f-title').value.trim() || 'Job Title');
   const email = esc(document.getElementById('f-email').value.trim().toLowerCase());
@@ -134,6 +156,11 @@ function build() {
   parts.push(`<a href="https://${COMPANY_WEB}" style="color:${BLUE};text-decoration:none;">${COMPANY_WEB}</a>`);
   const contactLine = parts.join('<span style="color:#c3cad0;">&nbsp;|&nbsp;</span>');
 
+  return { name, title, contactLine };
+}
+
+function buildFull() {
+  const { name, title, contactLine } = fields();
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="border-collapse:collapse;background-color:#ffffff;max-width:100%;">
  <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:20px 22px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#333f48;">
@@ -147,7 +174,7 @@ function build() {
       <div style="font-size:13px;color:${MUTED};line-height:1.5;">${COMPANY_NAME}</div>
       <div style="height:9px;line-height:9px;font-size:0;">&nbsp;</div>
       <div style="font-size:12px;color:${MUTED};line-height:1.75;">${contactLine}</div>
-      <div style="font-size:12px;color:#8a949c;line-height:1.6;">${COMPANY_ADDR}</div>
+      <div style="font-size:12px;color:#8a949c;line-height:1.6;text-decoration:none;"><span style="color:#8a949c;text-decoration:none;">${COMPANY_ADDR}</span></div>
     </td>
    </tr>
    <tr>
@@ -157,6 +184,24 @@ function build() {
    </tr>
   </table>
 
+ </td></tr>
+</table>`.trim();
+}
+
+function buildReply() {
+  const { name, title, contactLine } = fields();
+  return `
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="border-collapse:collapse;background-color:#ffffff;max-width:100%;">
+ <tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:12px 14px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#333f48;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;max-width:100%;">
+   <tr>
+    <td style="padding:0 0 0 12px;border-left:2px solid ${TEAL};">
+      <div style="font-size:14px;font-weight:600;color:#26333d;line-height:1.4;">${name}</div>
+      <div style="font-size:12px;color:${MUTED};line-height:1.5;"><span style="color:${TEAL_TXT};font-weight:600;">${title}</span><span style="color:#c3cad0;">&nbsp;&middot;&nbsp;</span>${COMPANY_NAME}</div>
+      <div style="font-size:12px;color:${MUTED};line-height:1.7;">${contactLine}</div>
+    </td>
+   </tr>
+  </table>
  </td></tr>
 </table>`.trim();
 }
@@ -176,40 +221,69 @@ emailEl.addEventListener('blur', () => {
   if (tidy !== emailEl.value) { emailEl.value = tidy; render(); }
 });
 
-const sigEl = document.getElementById('signature');
-function render(){ sigEl.innerHTML = build(); }
+const sigFullEl  = document.getElementById('sigFull');
+const sigReplyEl = document.getElementById('sigReply');
+function render(){
+  sigFullEl.innerHTML  = buildFull();
+  sigReplyEl.innerHTML = buildReply();
+}
 ['f-name','f-title','f-email','f-phone'].forEach(id =>
   document.getElementById(id).addEventListener('input', render));
 render();
 
-/* copy */
-const btn = document.getElementById('copyBtn'), status = document.getElementById('status');
-function flash(msg, ok){
-  status.textContent = msg;
-  status.style.color = ok ? '#0a8272' : '#b3402f';
-  setTimeout(() => { status.textContent = 'Then paste into Outlook \u203A Signatures.'; status.style.color = '#6b7780'; }, 3500);
+/* tabs */
+const TABS = [
+  { tab: 'tab-full',  panel: 'panel-full'  },
+  { tab: 'tab-reply', panel: 'panel-reply' }
+];
+function selectTab(id){
+  TABS.forEach(t => {
+    const on = t.tab === id;
+    document.getElementById(t.tab).setAttribute('aria-selected', on);
+    document.getElementById(t.panel).hidden = !on;
+  });
 }
-function legacyCopy(){
-  const sel = window.getSelection(), r = document.createRange();
-  r.selectNodeContents(sigEl); sel.removeAllRanges(); sel.addRange(r);
-  let ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
-  sel.removeAllRanges(); return ok;
+TABS.forEach(t =>
+  document.getElementById(t.tab).addEventListener('click', () => selectTab(t.tab)));
+
+/* copy — one wiring, used by both panels */
+const DEFAULT_STATUS = 'Then paste into Outlook \u203A Signatures.';
+
+function wireCopy(btnId, statusId, sourceEl){
+  const btn = document.getElementById(btnId);
+  const status = document.getElementById(statusId);
+
+  const flash = (msg, ok) => {
+    status.textContent = msg;
+    status.style.color = ok ? '#0a8272' : '#b3402f';
+    setTimeout(() => { status.textContent = DEFAULT_STATUS; status.style.color = '#6b7780'; }, 3500);
+  };
+
+  const legacyCopy = () => {
+    const sel = window.getSelection(), r = document.createRange();
+    r.selectNodeContents(sourceEl); sel.removeAllRanges(); sel.addRange(r);
+    let ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
+    sel.removeAllRanges(); return ok;
+  };
+
+  btn.addEventListener('click', async () => {
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([sourceEl.innerHTML], {type:'text/html'}),
+          'text/plain': new Blob([sourceEl.innerText], {type:'text/plain'})
+        })]);
+        flash('Copied \u2014 paste into Outlook.', true);
+        return;
+      }
+    } catch(e) {}
+    const ok = legacyCopy();
+    flash(ok ? 'Copied \u2014 paste into Outlook.' : 'Copy blocked \u2014 use Ctrl+A then Ctrl+C.', ok);
+  });
 }
-btn.addEventListener('click', async () => {
-  const html = sigEl.innerHTML;
-  try {
-    if (navigator.clipboard && window.ClipboardItem) {
-      await navigator.clipboard.write([new ClipboardItem({
-        'text/html': new Blob([html], {type:'text/html'}),
-        'text/plain': new Blob([sigEl.innerText], {type:'text/plain'})
-      })]);
-      flash('Copied \u2014 paste into Outlook.', true);
-      return;
-    }
-  } catch(e) {}
-  const ok = legacyCopy();
-  flash(ok ? 'Copied \u2014 paste into Outlook.' : 'Copy blocked \u2014 use Ctrl+A then Ctrl+C.', ok);
-});
+
+wireCopy('copyFull',  'statusFull',  sigFullEl);
+wireCopy('copyReply', 'statusReply', sigReplyEl);
 </script>
 </body>
 </html>
